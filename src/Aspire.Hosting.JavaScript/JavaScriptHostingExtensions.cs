@@ -89,7 +89,10 @@ public static class JavaScriptHostingExtensions
     /// <param name="builder">The <see cref="IDistributedApplicationBuilder"/> to add the resource to.</param>
     /// <param name="name">The name of the resource.</param>
     /// <param name="appDirectory">The path to the directory containing the node application.</param>
-    /// <param name="scriptPath">The path to the script relative to the app directory to run.</param>
+    /// <param name="scriptPath">
+    /// The path to the script relative to the app directory to run.
+    /// In case of using <see cref="WithBuildOutput{TResource}(IResourceBuilder{TResource}, string)"/> the path should be relative to the build output directory during publish.
+    /// </param>
     /// <returns>A reference to the <see cref="IResourceBuilder{T}"/>.</returns>
     /// <remarks>
     /// This method executes a Node script directly using <c>node script.js</c>. If you want to use a package manager
@@ -228,20 +231,16 @@ public static class JavaScriptHostingExtensions
                             .EmptyLine()
                             .WorkDir("/app");
 
-                    IEnumerable<string> buildOutput = ["/app"];
+                    var buildOutput = "/app";
                     if (resource.TryGetLastAnnotation<JavaScriptBuildOutputAnnotation>(out var buildOutputAnnotation))
                     {
-                        buildOutput = buildOutputAnnotation.Paths.Select(p =>
-                            string.Join('/', "/app", p.StartsWith("./") ? p[2..] : p)
-                        );
+                        var p = buildOutputAnnotation.Path;
+                        buildOutput = string.Join('/', "/app", p.StartsWith("./") ? p[2..] : p);
                     }
 
-                    foreach (var path in buildOutput)
-                    {
-                        runtimeBuilder.CopyFrom("build", path, path);
-                    }
-
-                    runtimeBuilder.AddContainerFiles(dockerfileContext.Resource, "/app", logger)
+                    runtimeBuilder
+                        .CopyFrom("build", buildOutput, "/app")
+                        .AddContainerFiles(dockerfileContext.Resource, "/app", logger)
                         .EmptyLine()
                         .Env("NODE_ENV", "production")
                         .EmptyLine()
@@ -455,6 +454,15 @@ public static class JavaScriptHostingExtensions
 
                             dockerBuilder.Run(string.Join(' ', commandArgs));
                         }
+
+                        var buildOutput = "/app";
+                        if (resource.TryGetLastAnnotation<JavaScriptBuildOutputAnnotation>(out var buildOutputAnnotation))
+                        {
+                            var p = buildOutputAnnotation.Path;
+                            buildOutput = string.Join('/', "/app", p.StartsWith("./") ? p[2..] : p);
+                        }
+
+                        c.WithAnnotation(new ContainerFilesSourceAnnotation() { SourcePath = buildOutput });
                     }
                 });
 
@@ -468,8 +476,8 @@ public static class JavaScriptHostingExtensions
                     throw new InvalidOperationException("DockerfileBuildAnnotation should exist after calling PublishAsDockerFile.");
                 }
             })
-            .WithAnnotation(new ContainerFilesSourceAnnotation() { SourcePath = "/app/dist" })
             .WithBuildScript("build")
+            .WithBuildOutput("dist")
             .WithRunScript(runScriptName);
 
         // ensure the package manager command is set before starting the resource
@@ -869,18 +877,18 @@ public static class JavaScriptHostingExtensions
     }
 
     /// <summary>
-    /// Adds a build output annotation to the specified JavaScript application resource builder, specifying the paths
+    /// Adds a build output annotation to the specified JavaScript application resource builder, specifying the path
     /// </summary>
     /// <typeparam name="TResource">The type of JavaScript application resource being configured.</typeparam>
     /// <param name="resource">The resource builder to which the build output annotation will be added.</param>
-    /// <param name="paths">The paths to include in the build output.</param>
+    /// <param name="path">The path to include in the build output.</param>
     /// <returns>The same resource builder instance with the build output annotation applied.</returns>
     /// <remarks>
-    /// Use this method to specify the output paths for the build artifacts of the JavaScript application.
+    /// Use this method to specify the output path for the build artifact of the JavaScript application.
     /// </remarks>
-    public static IResourceBuilder<TResource> WithBuildOutput<TResource>(this IResourceBuilder<TResource> resource, params string[] paths) where TResource : JavaScriptAppResource
+    public static IResourceBuilder<TResource> WithBuildOutput<TResource>(this IResourceBuilder<TResource> resource, string path) where TResource : JavaScriptAppResource
     {
-        return resource.WithAnnotation(new JavaScriptBuildOutputAnnotation(paths));
+        return resource.WithAnnotation(new JavaScriptBuildOutputAnnotation(path));
     }
 
     /// <summary>

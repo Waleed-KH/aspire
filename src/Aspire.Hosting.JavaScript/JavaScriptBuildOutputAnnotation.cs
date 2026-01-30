@@ -6,28 +6,25 @@ using Aspire.Hosting.ApplicationModel;
 namespace Aspire.Hosting.JavaScript;
 
 /// <summary>
-/// Represents an annotation that specifies the output file/directory paths to be included in the final image.
+/// Represents an annotation that specifies the build output directory path.
 /// </summary>
 public sealed class JavaScriptBuildOutputAnnotation : IResourceAnnotation
 {
     /// <summary>
-    /// Gets the output paths produced by the build process.
+    /// Gets the output path produced by the build process.
     /// </summary>
-    public string[] Paths { get; }
+    public string Path { get; }
 
-    /// <param name="paths">An array of paths produced by the build process.</param>
-    public JavaScriptBuildOutputAnnotation(string[] paths)
+    /// <param name="path">The path produced by the build process.</param>
+    public JavaScriptBuildOutputAnnotation(string path)
     {
-        for (var i = 0; i < paths.Length; i++)
-        {
-            ArgumentException.ThrowIfNullOrEmpty(paths[i]);
+        ArgumentException.ThrowIfNullOrEmpty(path);
 
-            if (paths[i].StartsWith('/'))
-            {
-                throw new ArgumentException("Build output paths cannot be absolute path.", nameof(paths));
-            }
+        if (path.StartsWith('/'))
+        {
+            throw new ArgumentException("Build output path should not be absolute.", nameof(path));
         }
 
-        Paths = paths;
+        Path = path;
     }
 }
